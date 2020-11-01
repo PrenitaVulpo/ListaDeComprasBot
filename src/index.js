@@ -6,16 +6,28 @@ const session = require('telegraf/session')
 const bot = new Telegraf(env.token);
 
 
-const buttons = () => Extra.markup(
+const buttons = list => Extra.markup(
   Markup.inlineKeyboard(
-    lista.map(item => Markup.callbackButton(item, `delete ${item}`)),
+    list.map(item => Markup.callbackButton(item, `delete ${item}`)),
     {columns:3}
   )
 )
 
 bot.use(session())
 
-bot.start(async context =>{
+const userCheck = (context, next) => {
+  const msgID = context.update.message 
+    && context.update.message.from.id == env.userID;
+  const callbackID = context.update.callback_query
+    && context.update.callback_query.from.id == env.userID
+  msgID || callbackID ? next() 
+    : context.reply('Não falo com estranhos.'); 
+}
+
+const loading = ({reply}, next) => 
+  reply('carregando...').then(()=>next())
+
+bot.start(userCheck, async context =>{
   const name = context.update.message.from.first_name;
   console.log(context.update.message.from)
   await context.reply(`Seja bem-vindo(a), ${name}!`);
@@ -23,14 +35,14 @@ bot.start(async context =>{
   context.session.list = []
 })
 
-bot.on('text', context => {
+bot.on('text', userCheck, loading,context => {
   const item = context.update.message.text;
-  lista.push(item);
+  context.session.list.push(item);
   context.reply(`${item} adicionado.`, buttons(context.session.list))
 })
 
-bot.action(/delete (.+)/, context => {
-  lista = lista.filter(item => item !== context.match[1]);
+bot.action(/delete (.+)/, userCheck,context => {
+  context.session.list = context.session.list.filter(item => item !== context.match[1]);
   context.reply(`${context.match[1]} deletado!`, buttons(context.session.list))
 })
 
